@@ -1,0 +1,56 @@
+name: Daily scrape rngdata
+
+on:
+  schedule:
+    - cron: "59 22 * * *"   # every day at 22:59 UTC
+  workflow_dispatch:         # allow manual runs too
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Puppeteer
+        run: npm install puppeteer
+
+      - name: Run scraper
+        run: |
+          node <<'EOF'
+          const fs = require("fs");
+          const puppeteer = require("puppeteer");
+
+          (async () => {
+            const browser = await puppeteer.launch({ args: ['--no-sandbox'] });
+            const page = await browser.newPage();
+            await page.goto("https://portal.equilaw.uk.com/rngdata", { waitUntil: "networkidle0" });
+            const value = await page.$eval("#root", el => el.innerText.trim());
+            console.log("Scraped value:", value);
+            await browser.close();
+
+            const timestamp = new Date().toISOString();
+            const line = `"${timestamp}","${value}"\n`;
+
+            // Add header if file doesn't exist yet
+            if (!fs.existsSync("data.csv")) {
+              fs.writeFileSync("data.csv", "timestamp,value\n", "utf8");
+            }
+
+            fs.appendFileSync("data.csv", line, "utf8");
+          })();
+          EOF
+
+      - name: Commit and push results
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@users.noreply.github.com"
+          git add data.csv
+          git commit -m "Update data.csv with new scrape" || echo "No changes to commit"
+          git push
