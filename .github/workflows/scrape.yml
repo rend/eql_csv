@@ -2,7 +2,7 @@ name: Daily scrape rngdata
 
 on:
   schedule:
-    - cron: "59 22 * * *"   # every day at 22:59 UTC
+    - cron: "30 22 * * *"   # every day at 22:59 UTC
   workflow_dispatch:         # allow manual runs too
 
 jobs:
